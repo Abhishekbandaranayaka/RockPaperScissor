@@ -1,0 +1,13 @@
+Round,Player Choice,AI Choice,Result
+1,Rock,Scissors,Win
+2,Rock,Rock,Tie
+3,Rock,Paper,Lose
+4,Rock,Scissors,Win
+5,Rock,Rock,Tie
+6,Rock,Rock,Tie
+7,Rock,Paper,Lose
+8,Rock,Rock,Tie
+9,Rock,Paper,Lose
+10,Rock,Paper,Lose
+11,Rock,Rock,Tie
+12,Rock,Paper,Lose
