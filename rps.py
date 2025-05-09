@@ -180,6 +180,38 @@ class GUIDemo:
             self.root.after(0, lambda: self.result_label.config(
                 text=f"Game Over! {self.result_label.cget('text').split('! ')[1]} Error saving screenshot."
             ))
+
+    def listen_for_commands(self):
+        """Listen for voice commands in a separate thread."""
+        with sr.Microphone() as source:
+            # Adjust for ambient noise
+            recognizer.adjust_for_ambient_noise(source)
+            print("Speech recognition started. Say 'start', 'proceed', or 'reset'.")
+            while self.listening:
+                try:
+                    audio = recognizer.listen(source, timeout=1, phrase_time_limit=3)
+                    command = recognizer.recognize_google(audio).lower()
+                    print(f"Recognized command: {command}")
+                    # Map commands to actions, executed on the main thread
+                    if "start" in command:
+                        self.root.after(0, self.start_game)
+                    elif "proceed" in command:
+                        self.root.after(0, self.proceed_round)
+                    elif "reset" in command:
+                        self.root.after(0, self.reset_game)
+                    else:
+                        self.root.after(0, lambda: self.result_label.config(text="Command not recognized. Try 'start', 'proceed', or 'reset'."))
+                except sr.WaitTimeoutError:
+                    # Timeout waiting for speech; continue listening
+                    continue
+                except sr.UnknownValueError:
+                    self.root.after(0, lambda: self.result_label.config(text="Could not understand audio. Try again."))
+                except sr.RequestError as e:
+                    self.root.after(0, lambda: self.result_label.config(text=f"Speech recognition error: {e}"))
+                except Exception as e:
+                    print(f"Speech recognition error: {e}")
+                    self.root.after(0, lambda: self.result_label.config(text="Error in speech recognition."))
+
     
     def start_game(self):
         """Start the game by initiating panel previews."""
@@ -191,6 +223,28 @@ class GUIDemo:
         self.result_label.config(text="Panels starting previews...")
         self.preview_start_time = time.time()
         self.show_preview() 
+
+    def reset_game(self):
+        """Reset the game to initial state."""
+        self.game_active = False
+        self.player_score = 0
+        self.ai_score = 0
+        self.round_number = 0
+        self.results = []
+        self.player_score_label.config(text="Player Score: 0")
+        self.ai_score_label.config(text="AI Score: 0")
+        self.result_label.config(text="Result: Click 'Start Game' or say 'start' to begin...")
+        self.start_button.pack()
+        self.proceed_button.pack_forget()
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        self.showing_preview = False
+        self.preview_start_time = None
+        # Cancel any pending preview updates
+        if self.preview_after_id is not None:
+            self.root.after_cancel(self.preview_after_id)
+            self.preview_after_id = None
+
  
     def update_image(self, label, img):
         """
@@ -242,6 +296,7 @@ class GUIDemo:
             self.root.after_cancel(self.preview_after_id)
             self.preview_after_id = None
         self.play_round()
+    
     def play_round(self):
         """Process a single round after Proceed button is clicked or voice command."""
         print("Starting round processing...")
@@ -324,8 +379,6 @@ class GUIDemo:
         if self.preview_after_id is not None:
             self.root.after_cancel(self.preview_after_id)
         self.cap.release()
-
-   
 
 # Main execution
 if __name__ == "__main__":
