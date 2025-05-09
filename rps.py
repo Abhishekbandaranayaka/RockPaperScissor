@@ -137,6 +137,26 @@ def visualize_landmarks(frame, landmarks):
         return contour_img
     return frame
 
+def process_image(frame):
+    """
+    Process frame to isolate hand using greyscale, thresholding, and contours.
+
+    Args:
+        frame (numpy.ndarray): Input frame.
+
+    Returns:
+        tuple: (grey, thresh, bg_removed).
+    """
+    grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    _, thresh = cv2.threshold(grey, 100, 255, cv2.THRESH_BINARY)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    mask = np.zeros(grey.shape, dtype=np.uint8)
+    for contour in contours:
+        if cv2.contourArea(contour) > 2000:
+            cv2.drawContours(mask, [contour], -1, 255, -1)
+    bg_removed = cv2.bitwise_and(frame, frame, mask=mask)
+    return grey, thresh, bg_removed
+
 class GUIDemo:    
     def start_game(self):
         """Start the game by initiating panel previews."""
@@ -189,6 +209,16 @@ class GUIDemo:
             self.showing_preview = True
         # Schedule the next preview update with a longer interval
         self.preview_after_id = self.root.after(50, self.show_preview)
+
+    def proceed_round(self):
+        """Proceed to the current round after button click or voice command."""
+        if not self.game_active:
+            return
+        # Cancel any pending preview updates
+        if self.preview_after_id is not None:
+            self.root.after_cancel(self.preview_after_id)
+            self.preview_after_id = None
+        self.play_round()
 
 # Main execution
 if __name__ == "__main__":
