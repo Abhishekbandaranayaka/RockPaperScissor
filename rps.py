@@ -158,6 +158,171 @@ def process_image(frame):
     return grey, thresh, bg_removed
 
 class GUIDemo:
+    def __init__(self, root):
+        """
+        Initialize the enhanced GUI for the Rock Paper Scissors game.
+
+        Args:
+            root (tk.Tk): The root Tkinter window.
+        """
+        self.root = root
+        self.root.title("Rock Paper Scissors Game")
+        self.root.geometry("1400x800")
+        self.root.configure(bg="#2C3E50")  # Dark blue background
+
+        self.cap = cv2.VideoCapture(0)
+        if not self.cap.isOpened():
+            print("Error: Could not open webcam.")
+            return
+
+        self.game_logic = GameLogic()
+        self.game_mode = "RPS"
+        self.results = []  # Store game results temporarily for display
+        self.player_score = 0
+        self.ai_score = 0
+        self.max_score = 5  # Game ends at 5 points
+        self.game_active = False
+        self.round_number = 0
+        self.showing_preview = False  # Track preview state
+        self.preview_start_time = None  # Track when preview started
+        self.preview_after_id = None  # Track the after ID for canceling
+        self.listening = True  # Control speech recognition thread
+        self.screenshot_count = 0  # Track screenshot count
+        self.save_path = "screenshots"  # Directory for screenshots
+        if not os.path.exists(self.save_path):
+            os.makedirs(self.save_path)
+
+        # Title
+        title_label = tk.Label(
+            self.root, text="Rock Paper Scissors", font=("Helvetica", 24, "bold"),
+            fg="#ECF0F1", bg="#2C3E50"
+        )
+        title_label.pack(pady=10)
+
+        # Instruction for Voice Commands
+        instruction_label = tk.Label(
+            self.root, text="Voice Commands: Say 'start' to begin, 'proceed' to play a round, 'reset' to restart",
+            font=("Helvetica", 12), fg="#BDC3C7", bg="#2C3E50"
+        )
+        instruction_label.pack(pady=5)
+
+        # Frame for image panels
+        panel_frame = tk.Frame(self.root, bg="#2C3E50")
+        panel_frame.pack(pady=10)
+
+        # Webcam Feed
+        webcam_frame = tk.Frame(panel_frame, bg="#2C3E50")
+        webcam_frame.pack(side=tk.LEFT, padx=10)
+        tk.Label(webcam_frame, text="Webcam Feed", font=("Helvetica", 12, "bold"),
+                 fg="#ECF0F1", bg="#2C3E50").pack()
+        self.webcam_label = tk.Label(webcam_frame, bg="#34495E", borderwidth=2, relief="solid")
+        self.webcam_label.pack()
+        tk.Label(webcam_frame, text="Webcam Feed", font=("Helvetica", 10),
+                 fg="#BDC3C7", bg="#2C3E50").pack()
+
+        # Greyscale
+        grey_frame = tk.Frame(panel_frame, bg="#2C3E50")
+        grey_frame.pack(side=tk.LEFT, padx=10)
+        tk.Label(grey_frame, text="Greyscale", font=("Helvetica", 12, "bold"),
+                 fg="#ECF0F1", bg="#2C3E50").pack()
+        self.grey_label = tk.Label(grey_frame, bg="#34495E", borderwidth=2, relief="solid")
+        self.grey_label.pack()
+        tk.Label(grey_frame, text="Greyscale", font=("Helvetica", 10),
+                 fg="#BDC3C7", bg="#2C3E50").pack()
+
+        # Thresholded
+        thresh_frame = tk.Frame(panel_frame, bg="#2C3E50")
+        thresh_frame.pack(side=tk.LEFT, padx=10)
+        tk.Label(thresh_frame, text="Thresholded", font=("Helvetica", 12, "bold"),
+                 fg="#ECF0F1", bg="#2C3E50").pack()
+        self.thresh_label = tk.Label(thresh_frame, bg="#34495E", borderwidth=2, relief="solid")
+        self.thresh_label.pack()
+        tk.Label(thresh_frame, text="Thresholded", font=("Helvetica", 10),
+                 fg="#BDC3C7", bg="#2C3E50").pack()
+
+        # Background Removed
+        bg_frame = tk.Frame(panel_frame, bg="#2C3E50")
+        bg_frame.pack(side=tk.LEFT, padx=10)
+        tk.Label(bg_frame, text="Background Removed", font=("Helvetica", 12, "bold"),
+                 fg="#ECF0F1", bg="#2C3E50").pack()
+        self.bg_label = tk.Label(bg_frame, bg="#34495E", borderwidth=2, relief="solid")
+        self.bg_label.pack()
+        tk.Label(bg_frame, text="Background Removed", font=("Helvetica", 10),
+                 fg="#BDC3C7", bg="#2C3E50").pack()
+
+        # Score and Result Frame
+        score_frame = tk.Frame(self.root, bg="#2C3E50")
+        score_frame.pack(pady=10)
+
+        # Player Score
+        self.player_score_label = tk.Label(
+            score_frame, text="Player Score: 0", font=("Helvetica", 14),
+            fg="#2ECC71", bg="#2C3E50"
+        )
+        self.player_score_label.pack(side=tk.LEFT, padx=20)
+
+        # AI Score
+        self.ai_score_label = tk.Label(
+            score_frame, text="AI Score: 0", font=("Helvetica", 14),
+            fg="#E74C3C", bg="#2C3E50"
+        )
+        self.ai_score_label.pack(side=tk.LEFT, padx=20)
+
+        # Result Display
+        self.result_label = tk.Label(
+            self.root, text="Result: Click 'Start Game' or say 'start' to begin...", font=("Helvetica", 16),
+            fg="#F1C40F", bg="#2C3E50"
+        )
+        self.result_label.pack(pady=10)
+
+        # Results Table
+        table_frame = tk.Frame(self.root, bg="#2C3E50")
+        table_frame.pack(pady=10, fill=tk.BOTH, expand=True)
+        self.tree = ttk.Treeview(
+            table_frame, columns=("Round", "Player", "AI", "Result"), show="headings"
+        )
+        self.tree.heading("Round", text="Round")
+        self.tree.heading("Player", text="Player Choice")
+        self.tree.heading("AI", text="AI Choice")
+        self.tree.heading("Result", text="Result")
+        self.tree.column("Round", width=100, anchor="center")
+        self.tree.column("Player", width=150, anchor="center")
+        self.tree.column("AI", width=150, anchor="center")
+        self.tree.column("Result", width=150, anchor="center")
+        style = ttk.Style()
+        style.configure("Treeview", background="#34495E", foreground="#ECF0F1", fieldbackground="#34495E")
+        style.configure("Treeview.Heading", font=("Helvetica", 12, "bold"))
+        self.tree.pack(fill=tk.BOTH, expand=True)
+
+        # Start Game Button
+        self.start_button = tk.Button(
+            self.root, text="Start Game", font=("Helvetica", 14, "bold"),
+            bg="#3498DB", fg="#ECF0F1", activebackground="#2980B9",
+            command=self.start_game
+        )
+        self.start_button.pack(pady=10)
+
+        # Proceed to Round Button (initially hidden)
+        self.proceed_button = tk.Button(
+            self.root, text="Proceed to Round 1", font=("Helvetica", 14, "bold"),
+            bg="#F1C40F", fg="#2C3E50", activebackground="#D4AC0D",
+            command=self.proceed_round
+        )
+        self.proceed_button.pack(pady=5)
+        self.proceed_button.pack_forget()  # Hide initially
+
+        # Reset Button
+        self.reset_button = tk.Button(
+            self.root, text="Reset Game", font=("Helvetica", 14, "bold"),
+            bg="#E74C3C", fg="#ECF0F1", activebackground="#C0392B",
+            command=self.reset_game
+        )
+        self.reset_button.pack(pady=5)
+
+        # Start the speech recognition thread
+        self.speech_thread = threading.Thread(target=self.listen_for_commands, daemon=True)
+        self.speech_thread.start()
+
     def capture_screenshot(self, frame):
         """
         Capture and save a screenshot from the webcam frame.
