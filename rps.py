@@ -157,7 +157,30 @@ def process_image(frame):
     bg_removed = cv2.bitwise_and(frame, frame, mask=mask)
     return grey, thresh, bg_removed
 
-class GUIDemo:    
+class GUIDemo:
+    def capture_screenshot(self, frame):
+        """
+        Capture and save a screenshot from the webcam frame.
+
+        Args:
+            frame (numpy.ndarray): The frame to save.
+        """
+        try:
+            timestamp = time.strftime("%Y%m%d-%H%M%S")
+            filename = f"game_end_{self.screenshot_count}_{timestamp}.png"
+            filepath = os.path.join(self.save_path, filename)
+            cv2.imwrite(filepath, frame)
+            print(f"Screenshot saved: {filepath}")
+            self.screenshot_count += 1
+            self.root.after(0, lambda: self.result_label.config(
+                text=f"Game Over! {self.result_label.cget('text').split('! ')[1]} Screenshot saved: {filepath}"
+            ))
+        except Exception as e:
+            print(f"Error saving screenshot: {e}")
+            self.root.after(0, lambda: self.result_label.config(
+                text=f"Game Over! {self.result_label.cget('text').split('! ')[1]} Error saving screenshot."
+            ))
+    
     def start_game(self):
         """Start the game by initiating panel previews."""
         if self.game_active:
@@ -219,6 +242,90 @@ class GUIDemo:
             self.root.after_cancel(self.preview_after_id)
             self.preview_after_id = None
         self.play_round()
+    def play_round(self):
+        """Process a single round after Proceed button is clicked or voice command."""
+        print("Starting round processing...")
+        ret, frame = self.cap.read()
+        if not ret:
+            print("Error: Failed to read frame from webcam.")
+            self.result_label.config(text="Error: Webcam frame not available. Restart the game.")
+            return
+        frame = cv2.flip(frame, 1)
+        grey, thresh, bg_removed = process_image(frame)
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands.process(frame_rgb)
+        if results.multi_hand_landmarks:
+            print("Hand landmarks detected.")
+            for hand_landmarks in results.multi_hand_landmarks:
+                frame = visualize_landmarks(frame, hand_landmarks)
+                gesture = detect_gesture(hand_landmarks.landmark, self.game_mode)
+                if gesture:
+                    print(f"Detected gesture: {gesture}")
+                    ai_choice = random.choice(self.game_logic.choices[self.game_mode])
+                    result = self.game_logic.determine_winner(gesture, ai_choice, self.game_mode)
+                    self.round_number += 1
+                    # Update scores
+                    if result == "Win":
+                        self.player_score += 1
+                    elif result == "Lose":
+                        self.ai_score += 1
+                    # Update labels
+                    self.player_score_label.config(text=f"Player Score: {self.player_score}")
+                    self.ai_score_label.config(text=f"AI Score: {self.ai_score}")
+                    self.result_label.config(text=f"Result: Player: {gesture}, AI: {ai_choice}, {result}")
+                    # Add to results and table
+                    self.results.append({
+                        "round": self.round_number,
+                        "player": gesture,
+                        "ai": ai_choice,
+                        "result": result
+                    })
+                    self.tree.insert("", tk.END, values=(self.round_number, gesture, ai_choice, result))
+                    # Force GUI update
+                    self.root.update()
+                    # Check for game end
+                    if self.player_score >= self.max_score or self.ai_score >= self.max_score:
+                        winner = "Player" if self.player_score >= self.max_score else "AI"
+                        self.result_label.config(text=f"Game Over! {winner} Wins! Say 'reset' to restart.")
+                        self.game_active = False
+                        # Capture screenshot
+                        self.capture_screenshot(frame)
+                        return
+                    else:
+                        self.result_label.config(text=f"Round {self.round_number} complete! Panels restarting...")
+                        self.showing_preview = False
+                        self.preview_start_time = time.time()
+                        self.proceed_button.config(text=f"Proceed to Round {self.round_number + 1}")
+                        # Add a small delay to allow GUI to refresh
+                        self.root.after(100, self.show_preview)
+                        return
+                else:
+                    print("No valid gesture detected.")
+                    self.result_label.config(text="No valid gesture detected. Try again.")
+                    self.root.update()
+        else:
+            print("No hand landmarks detected.")
+            self.result_label.config(text="No hand detected. Try again.")
+            self.root.update()
+        print("Round processing completed.")
+        # Restart preview after a delay
+        self.root.after(100, self.show_preview)
+
+    def update_frame(self):
+        """Update the GUI with the latest webcam frame (initially empty, handled by show_preview)."""
+        if not self.game_active:
+            self.root.after(50, self.update_frame)
+            return
+        self.root.after(50, self.update_frame)
+
+    def cleanup(self):
+        """Clean up resources when closing the application."""
+        self.listening = False  # Stop the speech recognition thread
+        if self.preview_after_id is not None:
+            self.root.after_cancel(self.preview_after_id)
+        self.cap.release()
+
+   
 
 # Main execution
 if __name__ == "__main__":
