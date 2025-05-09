@@ -1,6 +1,6 @@
 """
 Evidence Recorder Module for Rock Paper Scissors Game
-Author: [Your Name] (Member 6)
+Author: [sadula fernando] (Member 6)
 Date: May 08, 2025
 Description: This module implements a utility to capture webcam screenshots as evidence
 for the Rock Paper Scissors game. Screenshots are saved with timestamps in a designated
