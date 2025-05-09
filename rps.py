@@ -116,7 +116,39 @@ def detect_gesture(landmarks, game_mode="RPS"):
             return "Scissors"
     return None
 
+def visualize_landmarks(frame, landmarks):
+    """
+    Visualize hand landmarks on the frame.
+
+    Args:
+        frame (numpy.ndarray): Input frame.
+        landmarks: Hand landmarks from MediaPipe.
+
+    Returns:
+        numpy.ndarray: Frame with landmarks drawn.
+    """
+    if landmarks:
+        contour_img = frame.copy()
+        mp_drawing.draw_landmarks(
+            contour_img, landmarks, mp_hands.HAND_CONNECTIONS,
+            mp_drawing.DrawingSpec(color=(255, 0, 0), thickness=2),
+            mp_drawing.DrawingSpec(color=(0, 255, 0), thickness=2)
+        )
+        return contour_img
+    return frame
+
 class GUIDemo:    
+    def start_game(self):
+        """Start the game by initiating panel previews."""
+        if self.game_active:
+            return
+        self.game_active = True
+        self.start_button.pack_forget()  # Hide Start Game button
+        self.proceed_button.pack()  # Show Proceed button
+        self.result_label.config(text="Panels starting previews...")
+        self.preview_start_time = time.time()
+        self.show_preview() 
+ 
     def update_image(self, label, img):
         """
         Update a Tkinter label with a processed image.
