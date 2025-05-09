@@ -29,6 +29,41 @@ hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.8, min_tracki
 recognizer = sr.Recognizer()
 
 class GameLogic:
+    def __init__(self):
+        """Initialize the GameLogic with choices for RPS and RPSLS modes."""
+        self.choices = {
+            "RPS": ["Rock", "Paper", "Scissors"],
+            "RPSLS": ["Rock", "Paper", "Scissors", "Lizard", "Spock"]
+        }
+
+    def determine_winner(self, player_choice, ai_choice, game_mode="RPS"):
+        """
+        Determine the winner of a game round.
+
+        Args:
+            player_choice (str): Player's gesture.
+            ai_choice (str): AI's gesture.
+            game_mode (str): Game mode (default: "RPS").
+
+        Returns:
+            str: Result ("Win", "Lose", "Tie", or "Invalid gesture").
+        """
+        if player_choice not in self.choices[game_mode] or ai_choice not in self.choices[game_mode]:
+            return "Invalid gesture"
+        if player_choice == ai_choice:
+            return "Tie"
+        victories = {
+            "Rock": ["Scissors", "Lizard"],
+            "Paper": ["Rock", "Spock"],
+            "Scissors": ["Paper", "Lizard"],
+            "Lizard": ["Spock", "Paper"],
+            "Spock": ["Scissors", "Rock"]
+        } if game_mode == "RPSLS" else {
+            "Rock": ["Scissors"],
+            "Paper": ["Rock"],
+            "Scissors": ["Paper"]
+        }
+        return "Win" if ai_choice in victories[player_choice] else "Lose"
 
 def detect_gesture(landmarks, game_mode="RPS"):
     """
@@ -82,8 +117,27 @@ def detect_gesture(landmarks, game_mode="RPS"):
     return None
 
 class GUIDemo:    
+    def update_image(self, label, img):
+        """
+        Update a Tkinter label with a processed image.
 
-        def show_preview(self):
+        Args:
+            label (tk.Label): The label to update.
+            img (numpy.ndarray): The image to display.
+        """
+        try:
+            img = cv2.resize(img, (200, 150))
+            if len(img.shape) == 2:
+                img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img_pil = Image.fromarray(img)
+            photo = ImageTk.PhotoImage(img_pil)
+            label.config(image=photo)
+            label.image = photo
+        except Exception as e:
+            print(f"Error updating image: {e}")
+
+    def show_preview(self):
         """Display live preview on panels until Proceed button is clicked."""
         if not self.game_active:
             return
